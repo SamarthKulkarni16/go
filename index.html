@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Opening</title>
+<style>body{background:#000;color:#888;font:14px system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}</style></head>
+<body>Opening...
+<script>
+(function(){
+var KEY="__FB_KEY__",PROJ="perspective-library",FALLBACK="https://samarthkulkarni16.github.io/perspective-library/";
+var q=new URLSearchParams(location.search),code=(q.get("c")||"").replace(/[^a-z0-9_-]/gi,"").slice(0,16);
+var done=false;function go(u){if(done)return;done=true;location.replace(u||FALLBACK)}
+var ua=navigator.userAgent||"";
+var bot=/bot|crawl|spider|preview|facebookexternalhit|slurp|headless|whatsapp|telegram|curl|python/i.test(ua);
+fetch("map.json?t="+Date.now()).then(function(r){return r.json()}).then(function(M){
+  var e=M[code];
+  if(!e){go(FALLBACK);return}
+  if(bot){go(e.u);return}
+  var dev=/ipad|tablet/i.test(ua)?"tablet":(/mobi|android|iphone/i.test(ua)?"mobile":"desktop");
+  var ref="";try{ref=document.referrer?new URL(document.referrer).hostname:""}catch(_){}
+  var tz="";try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""}catch(_){}
+  var body={fields:{
+    code:{stringValue:code},
+    ts:{stringValue:new Date().toISOString()},
+    lang:{stringValue:(navigator.language||"").slice(0,12)},
+    tz:{stringValue:tz.slice(0,40)},
+    dev:{stringValue:dev},
+    ref:{stringValue:ref.slice(0,60)},
+    vid:{stringValue:String(e.v||"").slice(0,40)}
+  }};
+  setTimeout(function(){go(e.u)},1200);
+  fetch("https://firestore.googleapis.com/v1/projects/"+PROJ+"/databases/(default)/documents/utm_clicks?key="+KEY,
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),keepalive:true})
+    .then(function(){go(e.u)},function(){go(e.u)});
+}).catch(function(){go(FALLBACK)});
+})();
+</script></body></html>

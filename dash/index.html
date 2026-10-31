@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link analytics</title>
+<style>
+:root{--bg:#000;--fg:#fff;--mut:#8a8a8a;--line:#222;--card:#0b0b0b}
+*{box-sizing:border-box}
+body{margin:0 auto;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px 16px 48px;max-width:1100px}
+h1{font-size:18px;font-weight:600;margin:8px 0 2px}
+h2{font-size:12px;font-weight:600;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.sub{color:var(--mut);font-size:12px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.btn{background:none;border:1px solid var(--line);color:var(--mut);padding:6px 14px;border-radius:6px;cursor:pointer;font:inherit}
+.btn.on{color:#000;background:#fff;border-color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:8px}
+.k{color:var(--mut);font-size:12px}
+.v{font-size:26px;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.bar .n{width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .t{flex:1;background:#151515;height:8px;border-radius:4px}
+.bar .f{background:#fff;height:8px;border-radius:4px}
+.bar .c{width:44px;text-align:right;color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mut);font-weight:500}
+.r{text-align:right}
+.tw{overflow-x:auto}
+#err{color:#fff;border:1px solid #fff;border-radius:6px;padding:8px;margin-bottom:8px;display:none}
+</style></head>
+<body>
+<h1>Link analytics</h1>
+<div class="sub" id="upd">Loading...</div>
+<div id="err"></div>
+<div class="row">
+  <button class="btn" data-d="7">7 days</button>
+  <button class="btn on" data-d="28">28 days</button>
+  <button class="btn" data-d="90">90 days</button>
+  <button class="btn" id="reload">Refresh</button>
+</div>
+<div class="kpis">
+  <div class="card"><div class="k">Clicks (range)</div><div class="v" id="k1">0</div></div>
+  <div class="card"><div class="k">Last 24 hours</div><div class="v" id="k2">0</div></div>
+  <div class="card"><div class="k">Clips with clicks</div><div class="v" id="k3">0</div></div>
+  <div class="card"><div class="k">Live links</div><div class="v" id="k4">0</div></div>
+</div>
+<div class="card"><h2>Clicks per day</h2><div id="daily"></div></div>
+<div class="grid">
+  <div class="card"><h2>By platform</h2><div id="b_p"></div></div>
+  <div class="card"><h2>By clip language</h2><div id="b_l"></div></div>
+  <div class="card"><h2>By format</h2><div id="b_f"></div></div>
+  <div class="card"><h2>Visitor device</h2><div id="b_d"></div></div>
+  <div class="card"><h2>Visitor language</h2><div id="b_vl"></div></div>
+  <div class="card"><h2>Referrer</h2><div id="b_r"></div></div>
+</div>
+<div class="card"><h2>Top clips</h2><div class="tw"><table><thead><tr><th>Video</th><th>Lang</th><th>Best platform</th><th class="r">Clicks</th></tr></thead><tbody id="t_clips"></tbody></table></div></div>
+<div class="card"><h2>All links</h2><div class="tw"><table><thead><tr><th>Code</th><th>Video</th><th>Lang</th><th>Platform</th><th>Format</th><th class="r">Clicks</th><th>Last click (UTC)</th></tr></thead><tbody id="t_links"></tbody></table></div></div>
+<script>
+var KEY="__FB_KEY__",PROJ="perspective-library";
+var MAP={},CL=[],RANGE=28;
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+async function loadMap(){var r=await fetch("../map.json?t="+Date.now());MAP=await r.json()}
+async function loadClicks(){
+  var out=[],tok="",n=0;
+  do{
+    var u="https://firestore.googleapis.com/v1/projects/"+PROJ+"/databases/(default)/documents/utm_clicks?pageSize=300&key="+KEY+(tok?"&pageToken="+encodeURIComponent(tok):"");
+    var r=await fetch(u);
+    if(!r.ok)throw new Error("Click database answered "+r.status);
+    var j=await r.json();
+    (j.documents||[]).forEach(function(d){
+      var f=d.fields||{};
+      function g(k){return (f[k]&&f[k].stringValue)||""}
+      out.push({code:g("code"),ts:g("ts"),lang:g("lang"),dev:g("dev"),ref:g("ref"),tz:g("tz")});
+    });
+    tok=j.nextPageToken||"";n++;
+  }while(tok&&n<60);
+  CL=out;
+}
+function agg(rows,kf){var m={};rows.forEach(function(r){var k=kf(r)||"unknown";m[k]=(m[k]||0)+1});return Object.keys(m).map(function(k){return [k,m[k]]}).sort(function(a,b){return b[1]-a[1]})}
+function bars(id,list){
+  var mx=list.length?list[0][1]:1;
+  $(id).innerHTML=list.length?list.slice(0,8).map(function(x){
+    return '<div class="bar"><div class="n" title="'+esc(x[0])+'">'+esc(x[0])+'</div><div class="t"><div class="f" style="width:'+Math.max(2,x[1]/mx*100)+'%"></div></div><div class="c">'+x[1]+'</div></div>';
+  }).join(""):'<div class="k">No clicks yet</div>';
+}
+function daily(rows){
+  var days=[],now=Date.now(),i;
+  for(i=RANGE-1;i>=0;i--){days.push(new Date(now-i*864e5).toISOString().slice(0,10))}
+  var m={};rows.forEach(function(r){var k=r.ts.slice(0,10);m[k]=(m[k]||0)+1});
+  var vals=days.map(function(d){return m[d]||0}),mx=Math.max.apply(null,vals.concat([1])),w=1000,h=140,bw=w/days.length;
+  var s='<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="140" preserveAspectRatio="none" style="display:block">';
+  vals.forEach(function(v,i){var bh=v/mx*h;s+='<rect x="'+(i*bw+2)+'" y="'+(h-bh)+'" width="'+Math.max(bw-4,1)+'" height="'+Math.max(bh,v?2:0)+'" fill="#fff"><title>'+days[i]+': '+v+'</title></rect>'});
+  s+='</svg><div class="k" style="display:flex;justify-content:space-between;margin-top:4px"><span>'+days[0]+'</span><span>peak '+mx+' per day</span><span>'+days[days.length-1]+'</span></div>';
+  $("daily").innerHTML=s;
+}
+function render(){
+  var cut=Date.now()-RANGE*864e5,d1=Date.now()-864e5;
+  var all=CL.filter(function(r){return MAP[r.code]&&r.ts});
+  var rows=all.filter(function(r){return Date.parse(r.ts)>=cut}).map(function(r){var m=MAP[r.code];return {code:r.code,ts:r.ts,lang:r.lang,dev:r.dev,ref:r.ref,v:m.v,l:m.l,p:m.p,f:m.f}});
+  $("k1").textContent=rows.length;
+  $("k2").textContent=rows.filter(function(r){return Date.parse(r.ts)>=d1}).length;
+  var clips={};rows.forEach(function(r){clips[r.v+"|"+r.l]=1});
+  $("k3").textContent=Object.keys(clips).length;
+  $("k4").textContent=Object.keys(MAP).length;
+  daily(rows);
+  bars("b_p",agg(rows,function(r){return r.p}));
+  bars("b_l",agg(rows,function(r){return r.l}));
+  bars("b_f",agg(rows,function(r){return r.f}));
+  bars("b_d",agg(rows,function(r){return r.dev}));
+  bars("b_vl",agg(rows,function(r){return (r.lang||"").split("-")[0]}));
+  bars("b_r",agg(rows,function(r){return r.ref||"direct or app"}));
+  var g={};
+  rows.forEach(function(r){var k=r.v+"|"+r.l;var o=g[k]||(g[k]={v:r.v,l:r.l,n:0,p:{}});o.n++;o.p[r.p]=(o.p[r.p]||0)+1});
+  var tl=Object.keys(g).map(function(k){var o=g[k];var bp=Object.keys(o.p).sort(function(a,b){return o.p[b]-o.p[a]})[0];return {v:o.v,l:o.l,n:o.n,bp:bp}}).sort(function(a,b){return b.n-a.n});
+  $("t_clips").innerHTML=tl.length?tl.map(function(o){return '<tr><td>'+esc(o.v)+'</td><td>'+esc(o.l)+'</td><td>'+esc(o.bp)+'</td><td class="r">'+o.n+'</td></tr>'}).join(""):'<tr><td colspan="4" class="k">No clicks yet</td></tr>';
+  var lc={},ll={};
+  all.forEach(function(r){lc[r.code]=(lc[r.code]||0)+1;if(!ll[r.code]||r.ts>ll[r.code])ll[r.code]=r.ts});
+  var ks=Object.keys(MAP).sort(function(a,b){return (lc[b]||0)-(lc[a]||0)});
+  $("t_links").innerHTML=ks.slice(0,300).map(function(c){var m=MAP[c];return '<tr><td>'+esc(c)+'</td><td>'+esc(m.v)+'</td><td>'+esc(m.l)+'</td><td>'+esc(m.p)+'</td><td>'+esc(m.f)+'</td><td class="r">'+(lc[c]||0)+'</td><td>'+(ll[c]?esc(ll[c].slice(0,16).replace("T"," ")):"")+'</td></tr>'}).join("");
+  $("upd").textContent="Updated "+new Date().toLocaleString()+" - "+all.length+" clicks on tracked links";
+}
+async function refresh(){
+  $("err").style.display="none";
+  try{await loadMap();await loadClicks();render()}
+  catch(e){$("err").textContent=String(e.message||e);$("err").style.display="block";$("upd").textContent="Could not load"}
+}
+document.querySelectorAll("[data-d]").forEach(function(b){b.onclick=function(){
+  document.querySelectorAll("[data-d]").forEach(function(x){x.classList.remove("on")});
+  b.classList.add("on");RANGE=parseInt(b.getAttribute("data-d"),10);render();
+}});
+$("reload").onclick=refresh;
+refresh();
+setInterval(refresh,120000);
+</script></body></html>
